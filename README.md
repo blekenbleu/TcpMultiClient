@@ -12,10 +12,15 @@ This solution is interesting because
   (TCP/IP addresses other than `127.0.0.1`)
 - unlike Http servers which expect to disconnect after each page served,  
   this maintains connections, as is wanted for Server-Sent Events (SSE)
-- it [maintains a clients list](https://learn.microsoft.com/en-us/dotnet/api/system.collections.concurrent.concurrentdictionary-2?view=netframework-4.8) for echoing updates to multiple current connections, as wanted for SSE
+- an [asynchronous Task object for each client connection](https://learn.microsoft.com/en-us/dotnet/api/system.net.sockets.tcplistener.accepttcpclientasync?view=netframework-4.8)
+- server [maintains a clients list](https://learn.microsoft.com/en-us/dotnet/api/system.collections.concurrent.concurrentdictionary-2?view=netframework-4.8) for echoing updates to multiple current connections, as wanted for SSE
+- [`using` blocks can automagically close client and stream](https://riptutorial.com/csharp/example/28048/async-tcp-client)
 
-Before .NET 7, many async IO methods supported neither cancellation nor timeouts.  
-Get around that by [closing the stream object](https://stackoverflow.com/a/71698875).  
+### Before .NET 7, many async IO methods supported neither cancellation nor timeouts.
+- [cancelling TcpListener.AcceptTcpClientAsync()](https://www.darchuk.net/2018/11/09/adding-a-cancellationtoken-to-tcplistener-accepttcpclientasync/)
+- alternatively [close the stream object](https://stackoverflow.com/a/71698875).  
+- [JavaScript `beforeunload` Event](https://www.javascripttutorial.net/javascript-dom/javascript-beforeunload-event/) to warn server when browser window closes
+
 Other references:  
 - [M$ TCP overview:&nbsp; Create a TcpListener](https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/sockets/tcp-classes)
 - [HTTP Server using C# TCP Socket](https://medium.com/@antoharyanto/creating-an-http-server-using-tcp-socket-in-c-without-third-party-libraries-for-a-better-a68d2102b1d0)
