@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -8,6 +9,12 @@ using System.Threading.Tasks;
 
 namespace TcpMultiClient
 {
+	internal class SsClient
+	{
+		internal TcpClient Tc;
+		internal bool Ht;
+	}
+
     internal class Program
     {
         // https://elysiatools.com/en/samples/windows-networking-csharp
@@ -20,7 +27,7 @@ namespace TcpMultiClient
 
             int port = 8081;
             TcpListener server = null;
-            ConcurrentDictionary<string, TcpClient> clients = new ConcurrentDictionary<string, TcpClient>();
+            ConcurrentDictionary<string, SsClient> clients = new ConcurrentDictionary<string, SsClient>();
 
             try
             {
@@ -34,7 +41,7 @@ namespace TcpMultiClient
                     TcpClient client = await server.AcceptTcpClientAsync();
                     string clientId = $"Client_{DateTime.Now:HHmmss}_{client.Client.RemoteEndPoint}";
 
-                    clients[clientId] = client;
+                    clients[clientId] = new SsClient() { Tc = client, Ht = false };
                     Console.WriteLine($"New client connected: {clientId}");
 
                     _ = Task.Run(() => HandleMultiClient(client, clientId, clients));
@@ -50,45 +57,60 @@ namespace TcpMultiClient
             }
         }
 
-        static async Task HandleMultiClient(TcpClient client, string clientId, ConcurrentDictionary<string, TcpClient> clients)
+		static readonly byte[] ok = Encoding.UTF8.GetBytes("HTTP/1.1 200 OK\nContent-Type:text/html; charset=UTF-8\n\n<html>");
+        static async Task HandleMultiClient(TcpClient client, string clientId, ConcurrentDictionary<string, SsClient> clients)
         {
             try
             {
                 using (client)
                 using (NetworkStream stream = client.GetStream())
                 {
-                    // Send welcome message
-                    string welcome = $"Welcome! You are {clientId}. Connected clients: {clients.Count}\n";
-                    byte[] welcomeBytes = Encoding.UTF8.GetBytes(welcome);
-                    await stream.WriteAsync(welcomeBytes, 0, welcomeBytes.Length);
-
-                    while (true)
+                    // Test for HTTP
+                    using (StreamReader sr = new StreamReader(stream))
                     {
-                        byte[] buffer = new byte[1024];
-                        int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
-                        if (bytesRead == 0) break;
-
-                        string message = Encoding.UTF8.GetString(buffer, 0, bytesRead).Trim();
-                        Console.WriteLine($"{clientId}: {message}");
-
-                        // Broadcast message to all clients (except sender)
-                        string broadcastMsg = $"{clientId}: {message}\n";
-                        byte[] broadcastBytes = Encoding.UTF8.GetBytes(broadcastMsg);
-
-                        foreach (var kvp in clients)
+                        string first = sr.ReadLine();
+                        if (null != first)
                         {
-                            try
+                            string[] actionLine = first?.Split(new char[] { ' ' }, 3);
+                            if (null != actionLine && "POST" == actionLine[0] || "GET" == actionLine[0])
                             {
-                                if (kvp.Key != clientId && kvp.Value.Connected)
-                                {
-                                    NetworkStream clientStream = kvp.Value.GetStream();
-                                    await clientStream.WriteAsync(broadcastBytes, 0, broadcastBytes.Length);
-                                }
+                                await stream.WriteAsync(ok, 0, ok.Length);
+                                clients[clientId].Ht = true;
                             }
-                            catch
+                        }
+                        // Send welcome message
+                        string welcome = $"Welcome! You are {clientId}. Connected clients: {clients.Count}<br>\n";
+                        byte[] welcomeBytes = Encoding.UTF8.GetBytes(welcome);
+                        await stream.WriteAsync(welcomeBytes, 0, welcomeBytes.Length);
+
+                        while (true)
+                        {
+                            byte[] buffer = new byte[1024];
+                            int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
+                            if (bytesRead == 0) break;
+
+                            string message = Encoding.UTF8.GetString(buffer, 0, bytesRead).Trim();
+                            Console.WriteLine($"{clientId}: {message}");
+
+                            // Broadcast message to all clients (except sender)
+                            string broadcastMsg = $"{clientId}: {message}<br>\n";
+                            byte[] broadcastBytes = Encoding.UTF8.GetBytes(broadcastMsg);
+
+                            foreach (var kvp in clients)
                             {
-                                // Remove disconnected client
-                                clients.TryRemove(kvp.Key, out _);
+                                try
+                                {
+                                    if (kvp.Key != clientId && kvp.Value.Tc.Connected)
+                                    {
+                                        NetworkStream clientStream = kvp.Value.Tc.GetStream();
+                                        await clientStream.WriteAsync(broadcastBytes, 0, broadcastBytes.Length);
+                                    }
+                                }
+                                catch
+                                {
+                                    // Remove disconnected client
+                                    clients.TryRemove(kvp.Key, out _);
+                                }
                             }
                         }
                     }
