@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Minimal SSE Demo - .NET 9</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        #messages { 
+            border: 1px solid #ccc; 
+            padding: 10px; 
+            height: 300px; 
+            overflow-y: auto;
+            background: #f9f9f9;
+        }
+        .message { padding: 5px; border-bottom: 1px solid #eee; }
+        .status { font-weight: bold; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Minimal Server-Sent Events Demo</h1>
+    <div class="status">Status: <span id="status">Connecting...</span></div>
+    <div id="messages"></div>
+
+    <script>
+        const source = new EventSource('/sse');
+        const messages = document.getElementById('messages');
+        const status = document.getElementById('status');
+        
+        source.onmessage = (e) => {
+            const div = document.createElement('div');
+            div.className = 'message';
+            div.textContent = e.data;
+            messages.insertBefore(div, messages.firstChild);
+        };
+        
+        source.onopen = () => {
+            status.textContent = 'Connected';
+            status.style.color = 'green';
+        };
+        
+        source.onerror = () => {
+            status.textContent = 'Disconnected';
+            status.style.color = 'red';
+        };
+    </script>
+</body>
+</html>

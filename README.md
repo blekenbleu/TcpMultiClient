@@ -27,9 +27,10 @@ Other references:
 - [simple HttpServer using TCPListener](https://github.com/blekenbleu/HttpServer)
 
 ### `'Content-Type': 'text/event-stream'`
+- [**Simple (25 line) .NET 9 server and client**](https://github.com/blekenbleu/sse_net9)
+	- [Reverse-Engineering SSE @ TCP level](RevEng.md)
 - [Stream updates with server-sent events - web.dev](https://web.dev/articles/eventsource-basics)
 - [9.2 Server-sent events - HTML Living Standard](https://html.spec.whatwg.org/multipage/server-sent-events.html)  
 - [Sending events from the server - Mmdn_](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events#sending_events_from_the_server)
 - [Simplest Server Sent Events In .NET (no libraries)](https://dev.to/yrezehi/simplest-server-sent-events-in-net-no-libraries-2a43)
-- [Simple (25 line) .NET 9 server and client](https://github.com/holgarsson/sse_net9)
 
