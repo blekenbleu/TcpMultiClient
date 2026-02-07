@@ -15,116 +15,116 @@ namespace TcpMultiClient
 		internal bool Ht;
 	}
 
-    internal class Program
-    {
-        // https://elysiatools.com/en/samples/windows-networking-csharp
-        // TCP Server with Multiple Client Support
-        static async Task Main()
-        { var foo = Task.Run(() => MultiClientTcpServer()); Console.WriteLine("Main():  launched MultiClientTcpServer"); await foo; }
-        public static async Task MultiClientTcpServer()
-        {
-            Console.WriteLine("\n=== Multi-Client TCP Server ===");
+	internal class Program
+	{
+		// https://elysiatools.com/en/samples/windows-networking-csharp
+		// TCP Server with Multiple Client Support
+		static async Task Main()
+		{ var foo = Task.Run(() => MultiClientTcpServer()); Console.WriteLine("Main():  launched MultiClientTcpServer"); await foo; }
+		public static async Task MultiClientTcpServer()
+		{
+			Console.WriteLine("\n=== Multi-Client TCP Server ===");
 
-            int port = 8081;
-            TcpListener server = null;
-            ConcurrentDictionary<string, SsClient> clients = new ConcurrentDictionary<string, SsClient>();
+			int port = 8081;
+			TcpListener server = null;
+			ConcurrentDictionary<string, SsClient> clients = new ConcurrentDictionary<string, SsClient>();
 
-            try
-            {
-                server = new TcpListener(IPAddress.Any, port);
-                server.Start();
-                Console.WriteLine($"Multi-client server started on port {port}");
+			try
+			{
+				server = new TcpListener(IPAddress.Any, port);
+				server.Start();
+				Console.WriteLine($"Multi-client server started on port {port}");
 
-                // Accept clients continuously
-                while (true)
-                {
-                    TcpClient client = await server.AcceptTcpClientAsync();
-                    string clientId = $"Client_{DateTime.Now:HHmmss}_{client.Client.RemoteEndPoint}";
+				// Accept clients continuously
+				while (true)
+				{
+					TcpClient client = await server.AcceptTcpClientAsync();
+					string clientId = $"Client_{DateTime.Now:HHmmss}_{client.Client.RemoteEndPoint}";
 
-                    clients[clientId] = new SsClient() { Tc = client, Ht = false };
-                    Console.WriteLine($"New client connected: {clientId}");
+					clients[clientId] = new SsClient() { Tc = client, Ht = false };
+					Console.WriteLine($"New client connected: {clientId}");
 
-                    _ = Task.Run(() => HandleMultiClient(client, clientId, clients));
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Server error: {ex.Message}");
-            }
-            finally
-            {
-                server?.Stop();
-            }
-        }
+					_ = Task.Run(() => HandleMultiClient(client, clientId, clients));
+				}
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine($"Server error: {ex.Message}");
+			}
+			finally
+			{
+				server?.Stop();
+			}
+		}
 
 		static readonly byte[] ok = Encoding.UTF8.GetBytes("HTTP/1.1 200 OK\nContent-Type:text/html; charset=UTF-8\n\n<html>");
-        static async Task HandleMultiClient(TcpClient client, string clientId, ConcurrentDictionary<string, SsClient> clients)
-        {
-            try
-            {
-                using (client)
-                using (NetworkStream stream = client.GetStream())
-                {
-                    // Test for HTTP
-                    using (StreamReader sr = new StreamReader(stream))
-                    {
-                        string first = sr.ReadLine();
-                        if (null != first)
-                        {
-                            string[] actionLine = first?.Split(new char[] { ' ' }, 3);
-                            if (null != actionLine && "POST" == actionLine[0] || "GET" == actionLine[0])
-                            {
-                                await stream.WriteAsync(ok, 0, ok.Length);
-                                clients[clientId].Ht = true;
-                            }
-                        }
-                        // Send welcome message
-                        string welcome = $"Welcome! You are {clientId}. Connected clients: {clients.Count}<br>\n";
-                        byte[] welcomeBytes = Encoding.UTF8.GetBytes(welcome);
-                        await stream.WriteAsync(welcomeBytes, 0, welcomeBytes.Length);
+		static async Task HandleMultiClient(TcpClient client, string clientId, ConcurrentDictionary<string, SsClient> clients)
+		{
+			try
+			{
+				using (client)
+				using (NetworkStream stream = client.GetStream())
+				{
+					// Test for HTTP
+					using (StreamReader sr = new StreamReader(stream))
+					{
+						string first = sr.ReadLine();
+						if (null != first)
+						{
+							string[] actionLine = first?.Split(new char[] { ' ' }, 3);
+							if (null != actionLine && "POST" == actionLine[0] || "GET" == actionLine[0])
+							{
+								await stream.WriteAsync(ok, 0, ok.Length);
+								clients[clientId].Ht = true;
+							}
+						}
+						// Send welcome message
+						string welcome = $"Welcome! You are {clientId}. Connected clients: {clients.Count}<br>\n";
+						byte[] welcomeBytes = Encoding.UTF8.GetBytes(welcome);
+						await stream.WriteAsync(welcomeBytes, 0, welcomeBytes.Length);
 
-                        while (true)
-                        {
-                            byte[] buffer = new byte[1024];
-                            int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
-                            if (bytesRead == 0) break;
+						while (true)
+						{
+							byte[] buffer = new byte[1024];
+							int bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
+							if (bytesRead == 0) break;
 
-                            string message = Encoding.UTF8.GetString(buffer, 0, bytesRead).Trim();
-                            Console.WriteLine($"{clientId}: {message}");
+							string message = Encoding.UTF8.GetString(buffer, 0, bytesRead).Trim();
+							Console.WriteLine($"{clientId}: {message}");
 
-                            // Broadcast message to all clients (except sender)
-                            string broadcastMsg = $"{clientId}: {message}<br>\n";
-                            byte[] broadcastBytes = Encoding.UTF8.GetBytes(broadcastMsg);
+							// Broadcast message to all clients (except sender)
+							string broadcastMsg = $"{clientId}: {message}<br>\n";
+							byte[] broadcastBytes = Encoding.UTF8.GetBytes(broadcastMsg);
 
-                            foreach (var kvp in clients)
-                            {
-                                try
-                                {
-                                    if (kvp.Key != clientId && kvp.Value.Tc.Connected)
-                                    {
-                                        NetworkStream clientStream = kvp.Value.Tc.GetStream();
-                                        await clientStream.WriteAsync(broadcastBytes, 0, broadcastBytes.Length);
-                                    }
-                                }
-                                catch
-                                {
-                                    // Remove disconnected client
-                                    clients.TryRemove(kvp.Key, out _);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error handling client {clientId}: {ex.Message}");
-            }
-            finally
-            {
-                clients.TryRemove(clientId, out _);
-                Console.WriteLine($"{clientId} disconnected");
-            }
-        }
-    }
+							foreach (var kvp in clients)
+							{
+								try
+								{
+									if (kvp.Key != clientId && kvp.Value.Tc.Connected)
+									{
+										NetworkStream clientStream = kvp.Value.Tc.GetStream();
+										await clientStream.WriteAsync(broadcastBytes, 0, broadcastBytes.Length);
+									}
+								}
+								catch
+								{
+									// Remove disconnected client
+									clients.TryRemove(kvp.Key, out _);
+								}
+							}
+						}
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine($"Error handling client {clientId}: {ex.Message}");
+			}
+			finally
+			{
+				clients.TryRemove(clientId, out _);
+				Console.WriteLine($"{clientId} disconnected");
+			}
+		}
+	}
 }
